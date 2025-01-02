@@ -41,7 +41,7 @@ jobs:
           if [ "${{ steps.check_repo.outputs.exists }}" == "true" ]; then
             ssh ali-wg-server "cd /home/kchou/ansible-homelab && git pull"
           else
-            ssh ali-wg-server "git clone https://github.com/${{ github.repository }}.git /home/kchou/ansible-homelab"
+            ssh ali-wg-server "git clone git@github.com:bernylinville/${{ github.repository }}.git /home/kchou/ansible-homelab"
           fi
 
       - name: Check if .venv exists
