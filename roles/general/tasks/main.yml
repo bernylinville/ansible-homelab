@@ -1,0 +1,91 @@
+---
+- name: Update apt-cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  register: apt_cache_result
+  until: apt_cache_result is succeeded
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: true
+
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - htop
+      - iputils-ping
+      - lm-sensors
+      - neofetch
+      - net-tools
+      - nfs-common
+      - nvme-cli
+      - open-iscsi
+      - python3
+      - python3-apt
+      - python3-docker
+      - python3-yaml
+      - software-properties-common
+      - unzip
+      - util-linux
+      - python3-jmespath
+    install_recommends: false
+    update_cache: false
+  register: apt_install_result
+  until: apt_install_result is succeeded
+
+- name: Create homelab docker network
+  community.docker.docker_network:
+    name: homelab
+    ipam_config:
+      - subnet: 10.0.88.0/24
+        gateway: 10.0.88.1
+  register: docker_network_result
+  until: docker_network_result is succeeded
+
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ ansible_hostname }}"
+
+- name: Update hosts file configuration
+  ansible.builtin.copy:
+    content: |
+      127.0.0.1 localhost
+      127.0.1.1 {{ ansible_hostname }}
+      {% if ansible_default_ipv4.address != ansible_host %}
+      {{ ansible_default_ipv4.address }} {{ ansible_hostname }}
+      {% endif %}
+      {{ ansible_host }} {{ ansible_hostname }}
+      # The following lines are desirable for IPv6 capable hosts
+      ::1     localhost ip6-localhost ip6-loopback
+      ff02::1 ip6-allnodes
+      ff02::2 ip6-allrouters
+    dest: /etc/hosts
+    mode: '0644'
+
+- name: Disable apparmor for better compatibility
+  ansible.builtin.systemd:
+    name: apparmor
+    state: stopped
+    masked: true
+
+- name: Disable swap to improve system performance
+  ansible.posix.mount:
+    name: "{{ item }}"
+    fstype: swap
+    state: absent
+  loop: ["none", "swap"]
+
+- name: Create necessary application directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+    state: directory
+  with_items:
+    - "{{ homelab_appdata_directory }}"

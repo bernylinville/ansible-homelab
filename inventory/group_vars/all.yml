@@ -1,0 +1,16 @@
+---
+ansible_user: kchou
+timezone: "Asia/Shanghai"
+
+# geerlingguy.docker
+docker_compose_url: "https://gh-proxy.com/github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-linux-{{ docker_compose_arch }}"
+docker_repo_url: https://mirrors.ustc.edu.cn/docker-ce/linux
+docker_users:
+  - "{{ ansible_user }}"
+docker_daemon_options:
+  storage-driver: "overlay2"
+  log-opts:
+    max-size: "100m"
+
+# general
+homelab_appdata_directory: "/data/appdata"

@@ -1,0 +1,75 @@
+name: Run Ansible deployment on ali-wg-server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Remove passphrase from SSH key
+          echo "${{ secrets.SSH_PASSPHRASE }}" | ssh-keygen -p -f ~/.ssh/id_ed25519 -N "" -P "$(cat)"
+          cat <<EOT >> ~/.ssh/config
+          Host ali-wg-server
+            HostName 121.196.217.145
+            User kchou
+            Port 24653
+            IdentityFile ~/.ssh/id_ed25519
+          EOT
+
+      - name: Check if repository exists
+        id: check_repo
+        run: |
+          if ssh ali-wg-server "[ -d /home/kchou/ansible-homelab ]"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Clone or update repository
+        run: |
+          if [ "${{ steps.check_repo.outputs.exists }}" == "true" ]; then
+            ssh ali-wg-server "cd /home/kchou/ansible-homelab && git pull"
+          else
+            ssh ali-wg-server "git clone https://github.com/${{ github.repository }}.git /home/kchou/ansible-homelab"
+          fi
+
+      - name: Check if .venv exists
+        id: check_venv
+        run: |
+          if ssh ali-wg-server "[ -d /home/kchou/ansible-homelab/.venv ]"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Python virtual environment
+        if: steps.check_venv.outputs.exists == 'false'
+        run: ssh ali-wg-server "cd /home/kchou/ansible-homelab && python3 -m venv .venv"
+
+      - name: Install Python dependencies
+        run: ssh ali-wg-server "cd /home/kchou/ansible-homelab && source .venv/bin/activate && pip install -r requirements.txt"
+
+      - name: Install Ansible Galaxy dependencies
+        run: ssh ali-wg-server "cd /home/kchou/ansible-homelab && source .venv/bin/activate && ansible-galaxy install -r requirements.yml"
+
+      - name: Set up Ansible become password
+        run: |
+          ssh ali-wg-server "cd /home/kchou/ansible-homelab && echo '${{ secrets.ANSIBLE_BECOME_PASSWORD }}' > .ansible_become_password"
+          ssh ali-wg-server "chmod 600 /home/kchou/ansible-homelab/.ansible_become_password"
+
+      - name: Verify connectivity
+        run: ssh ali-wg-server "cd /home/kchou/ansible-homelab && source .venv/bin/activate && ansible -m ping all"
+
+      - name: Run Ansible playbook
+        run: ssh ali-wg-server "cd /home/kchou/ansible-homelab && source .venv/bin/activate && ansible-playbook homelab.yml -b"
