@@ -1,0 +1,11 @@
+---
+- name: Apply general configuration to all hosts
+  hosts: all
+  roles:
+    - role: general
+
+- name: Install docker
+  hosts: docker
+  roles:
+    - role: geerlingguy.docker
+      tags: ['docker']
