@@ -9,6 +9,7 @@
 - name: Upgrade all packages
   ansible.builtin.apt:
     upgrade: true
+  become: true
 
 - name: Install required packages
   ansible.builtin.apt:
@@ -37,19 +38,21 @@
     update_cache: false
   register: apt_install_result
   until: apt_install_result is succeeded
+  become: true
 
-- name: Create homelab docker network
-  community.docker.docker_network:
-    name: homelab
-    ipam_config:
-      - subnet: 10.0.88.0/24
-        gateway: 10.0.88.1
-  register: docker_network_result
-  until: docker_network_result is succeeded
+# - name: Create homelab docker network
+#   community.docker.docker_network:
+#     name: homelab
+#     ipam_config:
+#       - subnet: 10.0.88.0/24
+#         gateway: 10.0.88.1
+#   register: docker_network_result
+#   until: docker_network_result is succeeded
 
 - name: Set system hostname
   ansible.builtin.hostname:
     name: "{{ ansible_hostname }}"
+  become: true
 
 - name: Update hosts file configuration
   ansible.builtin.copy:
@@ -66,12 +69,14 @@
       ff02::2 ip6-allrouters
     dest: /etc/hosts
     mode: '0644'
+  become: true
 
 - name: Disable apparmor for better compatibility
   ansible.builtin.systemd:
     name: apparmor
     state: stopped
     masked: true
+  become: true
 
 - name: Disable swap to improve system performance
   ansible.posix.mount:
@@ -79,6 +84,7 @@
     fstype: swap
     state: absent
   loop: ["none", "swap"]
+  become: true
 
 - name: Create necessary application directories
   ansible.builtin.file:
@@ -89,3 +95,4 @@
     state: directory
   with_items:
     - "{{ homelab_appdata_directory }}"
+  become: true
