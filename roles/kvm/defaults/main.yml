@@ -1,0 +1,27 @@
+---
+# roles/kvm/vars/defaults.yml
+
+# Default bridge interface name
+kvm_bridge_interface: br0
+
+# !! IMPORTANT !! User must override this with their actual physical interface
+kvm_phys_interface: eth0
+
+# Users to add to libvirt groups (set to empty list [] to disable)
+kvm_users_to_groups:
+  - "{{ ansible_user | default(lookup('env', 'USER')) }}" # Default to ansible user or current user
+
+# Bridge IP configuration (User should override this)
+# Example static configuration:
+# kvm_bridge_ip_config:
+#   method: static
+#   address: 192.168.1.100
+#   netmask: 255.255.255.0
+#   gateway: 192.168.1.1
+#   dns_nameservers: "8.8.8.8 1.1.1.1"
+#
+# Example DHCP configuration:
+kvm_bridge_ip_config:
+  method: dhcp
+  # Add other DHCP options if needed, e.g.:
+  # hostname: mykvmhost

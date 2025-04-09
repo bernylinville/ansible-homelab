@@ -1,0 +1,64 @@
+---
+- name: Ensure KVM and bridge packages are installed
+  ansible.builtin.apt:
+    name: "{{ kvm_packages }}"
+    state: present
+    update_cache: true
+  become: true
+
+- name: Ensure libvirtd service is enabled and started
+  ansible.builtin.service:
+    name: libvirtd
+    state: started
+    enabled: true
+  become: true
+
+- name: Backup /etc/network/interfaces
+  ansible.builtin.copy:
+    src: /etc/network/interfaces
+    dest: /etc/network/interfaces.bak
+    remote_src: true
+    force: false # Do not overwrite if backup already exists
+    mode: '0644'
+    owner: root
+    group: root
+  become: true
+
+- name: Configure /etc/network/interfaces from template
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart networking
+  become: true
+
+- name: Configure physical interface file from template
+  ansible.builtin.template:
+    src: physical_interface.j2
+    dest: "/etc/network/interfaces.d/{{ kvm_phys_interface }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart networking
+  become: true
+
+- name: Create bridge configuration file from template
+  ansible.builtin.template:
+    src: bridge.j2
+    dest: "/etc/network/interfaces.d/{{ kvm_bridge_interface }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart networking
+  become: true
+
+- name: Add specified users to libvirt groups
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: libvirt,libvirt-qemu
+    append: true
+  loop: "{{ kvm_users_to_groups }}"
+  when: kvm_users_to_groups is defined and kvm_users_to_groups | length > 0
+  become: true

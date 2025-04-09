@@ -15,6 +15,10 @@
         - docker
       become: true
 
+    - role: kvm
+      tags:
+        - kvm
+
 # - name: Install docker
 #   hosts: docker
 #   roles:
