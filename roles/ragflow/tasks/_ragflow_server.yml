@@ -1,0 +1,61 @@
+---
+- name: Set document engine container name fact
+  ansible.builtin.set_fact:
+    doc_engine_container_name: >-
+      {% if ragflow_doc_engine == 'elasticsearch' %}{{ ragflow_es_container_name }}{%
+      elif ragflow_doc_engine == 'opensearch' %}{{ ragflow_os_container_name }}{%
+      elif ragflow_doc_engine == 'infinity' %}{{ ragflow_infinity_container_name }}{% endif %}
+
+- name: Define list of dependency containers
+  ansible.builtin.set_fact:
+    ragflow_dependencies:
+      - "{{ ragflow_mysql_container_name }}"
+      - "{{ ragflow_minio_container_name }}"
+      - "{{ ragflow_redis_container_name }}"
+      - "{{ doc_engine_container_name }}"
+
+- name: Wait for all dependency services to be healthy
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  register: container_status
+  until: "container_status.container.State.Health.Status == 'healthy'"
+  retries: 60 # (60 retries * 5 seconds = 300 seconds timeout)
+  delay: 5
+  loop: "{{ ragflow_dependencies }}"
+  loop_control:
+    label: "Waiting for {{ item }} to become healthy..."
+  ignore_errors: false # Fail fast if a dependency cannot start
+
+- name: Pull Ragflow server image
+  community.docker.docker_image:
+    name: "{{ ragflow_image }}"
+    source: pull
+    state: present
+
+- name: Start Ragflow server container
+  community.docker.docker_container:
+    name: "{{ ragflow_container_name }}"
+    image: "{{ ragflow_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env:
+      TZ: "{{ timezone }}"
+      HF_ENDPOINT: "{{ ragflow_hf_endpoint }}"
+      MACOS: "{{ 'true' if ragflow_macos_optimizations else '' }}"
+    etc_hosts: # ADDED: Equivalent to extra_hosts
+      "host.docker.internal": "host-gateway"
+    ports:
+      - "{{ ragflow_http_port }}:9380"
+      - "{{ ragflow_web_port_http }}:80"
+      # - "{{ ragflow_web_port_https }}:443"
+    volumes:
+      - "{{ ragflow_logs_dir }}:/ragflow/logs"
+      - "{{ ragflow_appdata_dir }}/ragflow.conf:/etc/nginx/conf.d/ragflow.conf:ro"
+      - "{{ ragflow_appdata_dir }}/proxy.conf:/etc/nginx/proxy.conf:ro"
+      - "{{ ragflow_appdata_dir }}/nginx.conf:/etc/nginx/nginx.conf:ro"
+      - "{{ ragflow_appdata_dir }}/history_data_agent:/ragflow/history_data_agent"
+      - "{{ ragflow_appdata_dir }}/service_conf.yaml.template:/ragflow/conf/service_conf.yaml.template"
+      - "{{ ragflow_appdata_dir }}/entrypoint.sh:/ragflow/entrypoint.sh"
+    device_requests: "{{ [{ 'driver': 'nvidia', 'count': '-1', 'capabilities': [['gpu']] }] if ragflow_gpu_enabled else omit }}"

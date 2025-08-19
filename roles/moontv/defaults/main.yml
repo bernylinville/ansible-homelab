@@ -1,0 +1,6 @@
+---
+moontv_enabled: false
+moontv_dir: "{{ homelab_appdata_directory }}/moontv"
+moontv_image_version: latest
+moontv_user_name: ""
+moontv_password: ""

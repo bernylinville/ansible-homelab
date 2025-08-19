@@ -1,0 +1,271 @@
+---
+ansible_user: kchou
+timezone: "Asia/Shanghai"
+
+# general
+ansible_user_home: "/home/{{ ansible_user }}"
+homelab_appdata_directory: "{{ ansible_user_home }}/appdata"
+
+# geerlingguy.docker
+# docker_compose_url: "https://gh-proxy.com/github.com/docker/compose/releases/download/..."
+# docker_repo_url: https://mirrors.ustc.edu.cn/docker-ce/linux
+docker_users:
+  - "{{ ansible_user }}"
+docker_daemon_options:
+  exec-opts:
+    - "native.cgroupdriver=systemd"
+  storage-driver: "overlay2"
+  log-opts:
+    max-size: "100m"
+    max-file: "3"
+
+# dify
+dify_version: "1.7.1"
+dify_sandbox_version: "0.2.12"
+dify_plugin_daemon_version: "0.2.0-local"
+dify_web_port: 18473 # 随机端口避免冲突
+dify_plugin_debug_port: 18474 # 插件调试端口（仅开发环境）
+
+# dify 服务节点部署控制
+dify_deployment_nodes:
+  api: "y9000p"
+  worker: "y9000p"
+  worker_beat: "y9000p"
+  web: "y9000p"
+  db: "y9000p"
+  redis: "y9000p"
+  sandbox: "y9000p"
+  plugin_daemon: "y9000p"
+  ssrf_proxy: "y9000p"
+  nginx: "y9000p"
+
+# dify 环境配置
+dify_env_mode: "production" # production, development, staging
+dify_enable_debug: false # 开发环境调试模式
+
+# dify API 性能配置
+dify_api_workers: 1 # API worker 进程数
+dify_api_connections: 10 # 每个 worker 的连接数
+dify_web_instances: 1 # Web PM2 实例数
+
+# dify 存储配置
+dify_storage_type: "local" # local, s3, azure, gcs
+dify_vector_store: "postgres" # postgres, weaviate, qdrant, milvus
+
+# dify 可选服务
+dify_enable_weaviate: false
+dify_enable_qdrant: false
+dify_enable_elasticsearch: false
+
+# NFS configuration (for future use)
+nfs_server_host: "192.168.50.94" # b360m as NFS server
+nfs_export_path: "/mnt/nas"
+nfs_export_network: "192.168.50.0/24"
+nfs_mount_point: "/mnt/shared"
+nfs_mount_options: "defaults,nfsvers=4,rsize=1048576,wsize=1048576,hard,intr"
+
+vaultwarden_enabled: true
+vaultwarden_dir: "{{ homelab_appdata_directory }}/vaultwarden"
+vaultwarden_image_version: "1.34.3"
+
+cloudflared_enabled: true
+cloudflared_data_directory: "{{ homelab_appdata_directory }}/cloudflared"
+cloudflared_image_version: "2025.8.0-amd64"
+
+syncthing_enabled: true
+syncthing_dir: "{{ homelab_appdata_directory }}/syncthing"
+syncthing_image_version: 1.30.0
+
+immich_enabled: true
+immich_dir: "{{ homelab_appdata_directory }}/immich"
+immich_image_version: v1.138.0
+immich_data_dir: "{{ nfs_mount_point }}/immich"
+
+newt_enabled: true
+newt_image_version: 1.4.0
+
+n8n_enabled: true
+n8n_dir: "{{ homelab_appdata_directory }}/n8n"
+n8n_image_version: 1.106.3
+
+prompt_enabled: true
+prompt_image_version: 1.4.2
+
+moontv_enabled: true
+moontv_dir: "{{ homelab_appdata_directory }}/moontv"
+moontv_image_version: 2.1.0
+
+gpt_load_enabled: true
+gpt_load_dir: "{{ homelab_appdata_directory }}/gpt_load"
+gpt_load_image_version: v1.0.20
+
+ragflow_enabled: false
+ragflow_gpu_enabled: false
+ragflow_image: "infiniflow/ragflow:v0.20.1-slim"
+ragflow_doc_enineg: "opensearch"
+ragflow_hf_endpoint: "https://hf-mirror.com"
+ragflow_http_port: "29380"
+ragflow_web_port_http: "26386"
+
+prometheus_version: 3.5.0
+prometheus_web_listen_address: "0.0.0.0:9090"
+prometheus_storage_retention: "60d"
+prometheus_storage_retention_size: "15GB"
+prometheus_global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+prometheus_scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets:
+          - "localhost:9090"
+  - job_name: "node"
+    static_configs:
+      - targets:
+          - "192.168.50.93:9100"
+          - "192.168.50.94:9100"
+    scrape_interval: 15s
+  - job_name: "nvidia_gpu"
+    static_configs:
+      - targets:
+          - "192.168.50.93:9835"
+          # Docker 容器监控 (如果使用 cAdvisor)
+  # - job_name: "cadvisor"
+  #   static_configs:
+  #     - targets:
+  #         - "localhost:8080"
+  #   scrape_interval: 30s
+prometheus_config_flags_extra:
+  web.enable-lifecycle: true
+  web.enable-admin-api: true
+  log.level: info
+# prometheus_alertmanager_config:
+#   - scheme: https
+#     path_prefix: alertmanager/
+#     basic_auth:
+#       username: user
+#       password: pass
+#     static_configs:
+#       - targets: ["127.0.0.1:9093"]
+#     proxy_url: "127.0.0.2"
+
+node_exporter_version: 1.9.1
+node_exporter_web_listen_address: "0.0.0.0:9100"
+node_exporter_textfile_dir: "/var/lib/node_exporter"
+node_exporter_enabled_collectors:
+  - systemd
+  - processes
+  - textfile:
+      directory: "{{ node_exporter_textfile_dir }}"
+  - filesystem:
+      ignored-mount-points: "^/(sys|proc|dev|run|var/lib/docker/.+)($|/)"
+      ignored-fs-types: "^(sys|proc|auto|overlay|tmpfs|devtmpfs)fs$"
+  - netdev
+  - diskstats
+  - meminfo
+  - loadavg
+node_exporter_disabled_collectors:
+  - wifi
+  - powersupplyclass
+
+nvidia_gpu_exporter_version: 1.3.2
+nvidia_gpu_exporter_web_listen_address: "0.0.0.0:9835"
+
+cadvisor_version: 0.52.1
+cadvisor_listen_ip: "0.0.0.0"
+cadvisor_port: "8080"
+cadvisor_docker_only: true
+cadvisor_store_container_labels: true
+# 容器标签白名单
+cadvisor_whitelisted_container_labels:
+  - "com.docker.compose.project"
+  - "com.docker.compose.service"
+  - "com.docker.compose.container-number"
+  - "app"
+  - "version"
+  - "environment"
+  - "maintainer"
+# 环境变量白名单
+cadvisor_env_metadata_whitelist:
+  - "PATH"
+  - "LANG"
+  - "APP_ENV"
+  - "VERSION"
+  - "NODE_ENV"
+# 性能优化 - 禁用不需要的指标
+cadvisor_disable_metrics:
+  - "percpu"
+  - "referenced_memory"
+  - "cpu_topology"
+  - "resctrl"
+  - "cpuset"
+  - "sched"
+  - "hugetlb"
+
+grafana_version: latest
+grafana_manage_repo: true
+grafana_apt_release_channel: stable
+grafana_use_provisioning: true
+grafana_provisioning_synced: false
+grafana_provisioning_dashboards_from_file_structure: false
+grafana_datasources:
+  - name: "Prometheus"
+    type: "prometheus"
+    access: "proxy"
+    url: "http://192.168.50.94:9090"
+    basicAuth: false
+    isDefault: true
+    jsonData:
+      tlsAuth: false
+      tlsAuthWithCACert: false
+      tlsSkipVerify: true
+grafana_dashboards:
+  # === 系统监控 ===
+  # Node Exporter Full - 最全面的系统监控
+  - dashboard_id: "1860"
+    revision_id: "latest"
+    datasource: "Prometheus"
+
+  # Node Exporter 快速概览
+  - dashboard_id: "11530"
+    revision_id: "latest"
+    datasource: "Prometheus"
+
+  # === Docker 容器监控 ===
+  # cAdvisor Docker 监控
+  - dashboard_id: "19792"
+    revision_id: "latest"
+    datasource: "Prometheus"
+
+  # cAdvisor Docker 监控
+  - dashboard_id: "19908"
+    revision_id: "latest"
+    datasource: "Prometheus"
+
+  # Docker 容器概览
+  - dashboard_id: "21743"
+    revision_id: "latest"
+    datasource: "Prometheus"
+
+  # === GPU 监控 ===
+  # NVIDIA GPU 指标
+  - dashboard_id: "14574"
+    revision_id: "latest"
+    datasource: "Prometheus"
+
+  # === Prometheus 监控 ===
+  # Prometheus 自监控
+  # - dashboard_id: "3662"
+  #   revision_id: "latest"
+  #   datasource: "Prometheus"
+  #   folder: "Infrastructure"
+
+grafana_plugins:
+  - grafana-piechart-panel # 饼图面板
+  - grafana-worldmap-panel # 世界地图面板
+  - grafana-clock-panel # 时钟面板
+  - grafana-simple-json-datasource # JSON 数据源
+  - briangann-gauge-panel # 仪表盘面板
+  - vonage-status-panel # 状态面板
+  - grafana-polystat-panel # 多状态面板

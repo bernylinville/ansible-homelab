@@ -1,0 +1,37 @@
+---
+- name: Start gpt_load Server
+  block:
+    - name: Create gpt_load directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      with_items:
+        - "{{ gpt_load_dir }}"
+        - "{{ gpt_load_dir }}/data"
+
+    - name: Start gpt_load Container
+      community.docker.docker_container:
+        name: gpt_load
+        image: "ghcr.io/tbphp/gpt-load:{{ gpt_load_image_version }}"
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        ports:
+          - 23683:3001
+        env:
+          TZ: "{{ timezone }}"
+          AUTH_KEY: "{{ gpt_load_auth_key }}"
+        volumes:
+          - "{{ gpt_load_dir }}/data:/app/data"
+        restart_policy: always
+  when: gpt_load_enabled is true
+
+- name: Stop gpt_load Server
+  block:
+    - name: Stop gpt_load Server
+      community.docker.docker_compose_v2:
+        project_src: "{{ gpt_load_dir }}"
+        state: absent
+  when: gpt_load_enabled is false

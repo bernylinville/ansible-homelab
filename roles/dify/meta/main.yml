@@ -1,0 +1,43 @@
+---
+galaxy_info:
+  author: kchou
+  description: Dify AI Platform deployment using Docker Compose
+  company: Homelab
+  license: MIT
+  min_ansible_version: "2.15"
+  
+  platforms:
+    - name: Ubuntu
+      versions:
+        - "20.04"
+        - "22.04"
+        - "24.04"
+    - name: Debian
+      versions:
+        - "11"
+        - "12"
+    - name: CentOS
+      versions:
+        - "8"
+        - "9"
+    - name: Rocky
+      versions:
+        - "8"
+        - "9"
+
+  galaxy_tags:
+    - docker
+    - ai
+    - dify
+    - llm
+    - containers
+    - compose
+
+dependencies:
+  - role: docker
+    when: ansible_facts['os_family'] in ['Debian', 'RedHat']
+
+collections:
+  - community.docker
+  - community.general
+  - ansible.posix

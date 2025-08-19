@@ -1,0 +1,225 @@
+---
+- name: Start pgvector container
+  community.docker.docker_container:
+    name: "{{ fastgpt_pgvector_container_name }}"
+    image: "pgvector/pgvector:{{ fastgpt_pgvector_image_version }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env:
+      POSTGRES_USER: "{{ fastgpt_pgvector_user }}"
+      POSTGRES_PASSWORD: "{{ fastgpt_pgvector_password }}"
+      POSTGRES_DB: "{{ fastgpt_pgvector_db_name }}"
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ fastgpt_mysql_port }}:3306"
+    volumes:
+      - "{{ fastgpt_pgvector_data_dir }}:/var/lib/postgresql/data"
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', '{{ fastgpt_pgvector_user }}', '-d', '{{ fastgpt_pgvector_db_name }}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+- name: Start mongo container
+  community.docker.docker_container:
+    name: "{{ fastgpt_mongo_container_name }}"
+    image: "mongo:{{ fastgpt_mongo_image_version }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    command: mongod --keyFile /data/mongodb.key --replSet rs0
+    env:
+      MONGO_INITDB_ROOT_USERNAME: "{{ fastgpt_mongo_root_user }}"
+      MONGO_INITDB_ROOT_PASSWORD: "{{ fastgpt_mongo_root_password }}"
+      TZ: "{{ timezone }}"
+    volumes:
+      - "{{ fastgpt_mongo_data_dir }}:/data/db"
+    entrypoint:
+      - bash
+      - -c
+      - |
+        openssl rand -base64 128 > /data/mongodb.key
+        chmod 400 /data/mongodb.key
+        chown 999:999 /data/mongodb.key
+        echo 'const isInited = rs.status().ok === 1
+        if(!isInited){
+          rs.initiate({
+              _id: "rs0",
+              members: [
+                  { _id: 0, host: "mongo:27017" }
+              ]
+          })
+        }' > /data/initReplicaSet.js
+        # 启动MongoDB服务
+        exec docker-entrypoint.sh "$$@" &
+
+        # 等待MongoDB服务启动
+        until mongo -u myusername -p mypassword --authenticationDatabase admin --eval "print('waited for connection')"; do
+          echo "Waiting for MongoDB to start..."
+          sleep 2
+        done
+
+        # 执行初始化副本集的脚本
+        mongo -u myusername -p mypassword --authenticationDatabase admin /data/initReplicaSet.js
+
+        # 等待docker-entrypoint.sh脚本执行的MongoDB服务进程
+        wait $$!
+    healthcheck:
+      test: ['CMD', 'mongo', '--eval', 'db.adminCommand("ping")']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+- name: Start MinIO container
+  community.docker.docker_container:
+    name: "{{ fastgpt_minio_container_name }}"
+    image: "{{ fastgpt_minio_image }}"
+    state: started
+    restart_policy: always
+    command: server --console-address ":9001" /data
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ fastgpt_appdata_dir }}/.env"
+    env:
+      MINIO_ROOT_USER: "{{ fastgpt_minio_user }}"
+      MINIO_ROOT_PASSWORD: "{{ fastgpt_minio_password }}"
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ fastgpt_minio_port }}:9000"
+    #   - "{{ fastgpt_minio_console_port }}:9001"
+    volumes:
+      - "{{ fastgpt_minio_data_dir }}:/data"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+- name: Start Redis (Valkey) container
+  community.docker.docker_container:
+    name: "{{ fastgpt_redis_container_name }}"
+    image: "{{ fastgpt_redis_image }}"
+    state: started
+    restart_policy: always
+    command: >-
+      redis-server
+      --requirepass {{ fastgpt_redis_password }}
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ fastgpt_appdata_dir }}/.env"
+    env:
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ fastgpt_redis_port }}:6379"
+    volumes:
+      - "{{ fastgpt_redis_data_dir }}:/data"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "{{ fastgpt_redis_password }}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+- name: Start Elasticsearch container
+  community.docker.docker_container:
+    name: "{{ fastgpt_es_container_name }}"
+    image: "{{ fastgpt_es_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ fastgpt_appdata_dir }}/.env"
+    env:
+      node.name: "es01"
+      ELASTIC_PASSWORD: "{{ fastgpt_es_password }}"
+      bootstrap.memory_lock: "false"
+      discovery.type: "single-node"
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      cluster.routing.allocation.disk.watermark.low: "5gb"
+      cluster.routing.allocation.disk.watermark.high: "3gb"
+      cluster.routing.allocation.disk.watermark.flood_stage: "2gb"
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ fastgpt_es_port }}:9200"
+    memory: "{{ fastgpt_mem_limit }}"
+    ulimits:
+      - "memlock:-1:-1"
+    volumes:
+      - "{{ fastgpt_es_data_dir }}:/usr/share/elasticsearch/data"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --fail http://localhost:9200"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+  when: fastgpt_doc_engine == 'elasticsearch'
+
+- name: Start OpenSearch container
+  community.docker.docker_container:
+    name: "{{ fastgpt_os_container_name }}"
+    image: "{{ fastgpt_os_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ fastgpt_appdata_dir }}/.env"
+    env:
+      node.name: "opensearch01"
+      OPENSEARCH_PASSWORD: "{{ fastgpt_os_password }}"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "{{ fastgpt_os_password }}"
+      bootstrap.memory_lock: "false"
+      discovery.type: "single-node"
+      plugins.security.disabled: "false"
+      plugins.security.ssl.http.enabled: "false"
+      plugins.security.ssl.transport.enabled: "true"
+      cluster.routing.allocation.disk.watermark.low: "5gb"
+      cluster.routing.allocation.disk.watermark.high: "3gb"
+      cluster.routing.allocation.disk.watermark.flood_stage: "2gb"
+      TZ: "{{ timezone }}"
+      http.port: "9201"
+    # ports:
+    #   - "{{ fastgpt_os_port }}:9201"
+    memory: "{{ fastgpt_mem_limit }}"
+    ulimits:
+      - "memlock:-1:-1"
+    volumes:
+      - "{{ fastgpt_os_data_dir }}:/usr/share/opensearch/data"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --fail -u 'admin:{{ fastgpt_os_password }}' http://localhost:9201/_cluster/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+  when: fastgpt_doc_engine == 'opensearch'
+
+- name: Start Infinity container
+  community.docker.docker_container:
+    name: "{{ fastgpt_infinity_container_name }}"
+    image: "{{ fastgpt_infinity_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ fastgpt_appdata_dir }}/.env"
+    command: ["-f", "/infinity_conf.toml"]
+    ports:
+      - "{{ fastgpt_infinity_thrift_port }}:23817"
+      - "{{ fastgpt_infinity_http_port }}:23820"
+      - "{{ fastgpt_infinity_psql_port }}:5432"
+    memory: "{{ fastgpt_mem_limit }}"
+    ulimits:
+      - "nofile:500000:500000"
+    volumes:
+      - "{{ fastgpt_infinity_data_dir }}:/var/infinity"
+      - "{{ fastgpt_infinity_config_file }}:/infinity_conf.toml"
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:23820/admin/node/current"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+  when: fastgpt_doc_engine == 'infinity'

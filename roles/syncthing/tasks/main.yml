@@ -1,0 +1,44 @@
+---
+- name: Start syncthing Server
+  block:
+    - name: Create syncthing directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      with_items:
+        - "{{ syncthing_dir }}"
+        - "{{ syncthing_dir }}/config"
+        - "{{ syncthing_dir }}/data"
+
+    - name: Start syncthing Container
+      community.docker.docker_container:
+        name: syncthing
+        hostname: "{{ ansible_hostname }}"
+        image: "lscr.io/linuxserver/syncthing:{{ syncthing_image_version }}"
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        volumes:
+          - "{{ syncthing_dir }}/config:/config"
+          - "{{ syncthing_dir }}/data:/data"
+        env:
+          PUID: "1000"
+          PGID: "1000"
+          TZ: "{{ timezone }}"
+        ports:
+          - 8384:8384
+          - 22000:22000/tcp
+          - 22000:22000/udp
+          - 21027:21027/udp
+        restart_policy: always
+  when: syncthing_enabled is true
+
+- name: Stop syncthing Server
+  block:
+    - name: Stop syncthing Server
+      community.docker.docker_compose_v2:
+        project_src: "{{ syncthing_dir }}"
+        state: absent
+  when: syncthing_enabled is false

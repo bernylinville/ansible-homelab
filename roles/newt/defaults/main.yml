@@ -1,0 +1,7 @@
+---
+newt_enabled: false
+# newt_dir: "{{ homelab_appdata_directory }}/newt"
+newt_image_version: 1.4.0
+newt_pangolin_domain: ""
+newt_id: ""
+newt_secret: ""

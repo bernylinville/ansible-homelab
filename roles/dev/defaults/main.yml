@@ -1,0 +1,37 @@
+---
+# 开发工具角色配置
+
+# 主机控制 - 可以指定在哪些主机上安装开发工具
+dev_target_hosts:
+  - y9000p  # 默认仅在 y9000p 安装
+
+# 全局开发工具控制
+dev_tools_enabled: true
+
+# Charm 工具配置
+dev_charm_enabled: true
+dev_charm_gpg_key_url: "https://repo.charm.sh/apt/gpg.key"
+dev_charm_repository: "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *"
+dev_charm_keyring_path: "/etc/apt/keyrings/charm.gpg"
+dev_charm_sources_list: "/etc/apt/sources.list.d/charm.list"
+
+# Crush (AI 编码助手) 配置
+dev_crush_enabled: true
+dev_crush_package: "crush"
+
+# 其他开发工具配置（可扩展）
+dev_additional_packages: []
+  # - git
+  # - vim
+  # - curl
+  # - wget
+
+# 验证配置
+dev_verify_installation: true
+dev_cleanup_temp_files: true
+
+# 权限配置
+dev_keyring_owner: "root"
+dev_keyring_group: "root"
+dev_keyring_mode: "0644"
+dev_sources_mode: "0644"

@@ -1,0 +1,4 @@
+---
+vaultwarden_enabled: false
+vaultwarden_dir: "{{ homelab_appdata_directory }}/vaultwarden"
+vaultwarden_image_version: 1.34.3

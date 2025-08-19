@@ -1,0 +1,38 @@
+---
+- name: Start vaultwarden Server
+  block:
+    - name: Create vaultwarden directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+      with_items:
+        - "{{ vaultwarden_dir }}"
+        - "{{ vaultwarden_dir }}/data"
+
+    - name: Start vaultwarden Container
+      community.docker.docker_container:
+        name: vaultwarden
+        image: "vaultwarden/server:{{ vaultwarden_image_version }}"
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        volumes:
+          - "{{ vaultwarden_dir }}/data:/data"
+        ports:
+          - 23681:80
+        env:
+          TZ: "{{ timezone }}"
+          DOMAIN: "https://vaultwarden.{{ cloudflared_tunnel_domain_name }}"
+          SIGNUPS_ALLOWED: "false"
+        restart_policy: always
+  when: vaultwarden_enabled is true
+
+- name: Stop vaultwarden Server
+  block:
+    - name: Stop vaultwarden Server
+      community.docker.docker_compose_v2:
+        project_src: "{{ vaultwarden_dir }}"
+        state: absent
+  when: vaultwarden_enabled is false

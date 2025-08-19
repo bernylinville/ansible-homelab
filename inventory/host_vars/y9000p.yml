@@ -8,3 +8,16 @@ kvm_bridge_ip_config:
   netmask: 255.255.255.0
   gateway: 192.168.50.1
   dns_nameservers: "192.168.50.1"
+
+# docker
+docker_daemon_options:
+  exec-opts:
+    - "native.cgroupdriver=systemd"
+  storage-driver: "overlay2"
+  log-opts:
+    max-size: "100m"
+    max-file: "3"
+  runtimes:
+    nvidia:
+      args: []
+      path: "/usr/bin/nvidia-container-runtime"

@@ -1,0 +1,162 @@
+---
+- name: 创建 Dify 目录结构
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  loop:
+    - "{{ dify_base_path }}"
+    - "{{ dify_compose_path }}"
+    - "{{ dify_compose_path }}/volumes"
+  become: true
+
+- name: 生成 Docker Compose 配置文件
+  ansible.builtin.template:
+    src: docker-compose.yaml.j2
+    dest: "{{ dify_compose_path }}/docker-compose.yaml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    backup: true
+
+- name: 创建 Nginx 配置文件
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ dify_compose_path }}/nginx.conf"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: 创建 Sandbox 配置文件
+  ansible.builtin.template:
+    src: sandbox-config.yaml.j2
+    dest: "{{ dify_compose_path }}/sandbox-config.yaml"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: 创建 SSRF 代理配置文件
+  ansible.builtin.template:
+    src: ssrf_proxy.conf.j2
+    dest: "{{ dify_compose_path }}/ssrf_proxy.conf"
+    mode: '0644'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+
+- name: 生成 .env 环境配置文件
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ dify_compose_path }}/.env"
+    mode: '0600'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    backup: true
+  notify: 重启 Dify 服务
+
+- name: 创建外部网络（如果需要）
+  community.docker.docker_network:
+    name: "{{ item.name }}"
+    state: present
+  loop: "{{ dify_networks }}"
+  when: item.external is defined and item.external
+
+- name: 部署 Dify Docker Compose 栈
+  community.docker.docker_compose_v2:
+    project_src: "{{ dify_compose_path }}"
+    project_name: "{{ dify_project_name }}"
+    env_files:
+      - "{{ dify_compose_path }}/.env"
+    profiles: "{{ dify_compose_profiles }}"
+    services: "{{ dify_compose_services if dify_compose_services else omit }}"
+    state: "{{ dify_compose_state }}"
+    build: "{{ dify_compose_build }}"
+    pull: "{{ dify_compose_pull }}"
+    remove_orphans: "{{ dify_compose_remove_orphans }}"
+    recreate: "{{ dify_compose_recreate }}"
+    wait: true
+    wait_timeout: 300
+  register: dify_compose_result
+
+- name: 显示部署结果
+  ansible.builtin.debug:
+    var: dify_compose_result
+    verbosity: 1
+
+- name: 等待服务就绪
+  ansible.builtin.uri:
+    url: "http://localhost:{{ dify_nginx_port }}/health"
+    method: GET
+    status_code: [200, 404]  # 404 也表示 Nginx 正常运行
+  register: dify_health_check
+  retries: 12
+  delay: 10
+  until: dify_health_check is not failed
+  ignore_errors: true
+
+- name: 显示 Dify 部署状态
+  ansible.builtin.debug:
+    msg: |
+      🎉 Dify 部署完成！
+
+      📍 访问信息：
+      - Web 界面: http://{{ ansible_default_ipv4.address }}:{{ dify_nginx_port }}
+      - 状态检查: {{ 'SUCCESS' if dify_health_check is not failed else 'PENDING' }}
+
+      ⚙️ 部署配置：
+      - 项目名称: {{ dify_project_name }}
+      - 向量数据库: {{ dify_vector_store | default('weaviate') }}
+      - 存储类型: {{ dify_storage_type | default('opendal') }}
+      - 调试模式: {{ dify_enable_debug | default(false) }}
+
+      📝 初始化说明：
+      {% if vault_dify_init_password is defined and vault_dify_init_password %}
+      - 管理员密码已预设，可直接登录
+      {% else %}
+      - ⚠️  首次访问请通过网页设置管理员账户和密码
+      {% endif %}
+
+      📂 数据存储：
+      - 配置目录: {{ dify_compose_path }}
+      - 数据卷目录: {{ dify_compose_path }}/volumes
+
+      🛠️  管理命令：
+      - 查看日志: docker compose -f {{ dify_compose_path }}/docker-compose.yaml logs
+      - 重启服务: docker compose -f {{ dify_compose_path }}/docker-compose.yaml restart
+      - 停止服务: docker compose -f {{ dify_compose_path }}/docker-compose.yaml down
+
+      💡 提示：
+      - 配置文件位于: {{ dify_compose_path }}/.env
+      - 修改配置后需要重启: docker compose -f {{ dify_compose_path }}/docker-compose.yaml up -d
+
+- name: 停止指定服务（维护模式）
+  community.docker.docker_compose_v2:
+    project_src: "{{ dify_compose_path }}"
+    project_name: "{{ dify_project_name }}"
+    services: "{{ dify_compose_stopped_services }}"
+    state: stopped
+  when: dify_compose_stopped_services | length > 0
+
+# 可选：设置定时备份
+- name: 设置数据库备份定时任务
+  ansible.builtin.cron:
+    name: "Dify 数据库备份"
+    minute: "0"
+    hour: "2"
+    job: |
+      cd {{ dify_compose_path }} &&
+      docker compose exec -T db pg_dump -U postgres dify |
+      gzip > {{ dify_base_path }}/backup/dify_backup_$(date +\%Y\%m\%d_\%H\%M\%S).sql.gz &&
+      find {{ dify_base_path }}/backup -name "dify_backup_*.sql.gz" -mtime +{{ dify_backup_retention_days }} -delete
+    state: "{{ 'present' if dify_backup_enabled else 'absent' }}"
+  when: dify_backup_enabled is defined
+
+- name: 创建备份目录
+  ansible.builtin.file:
+    path: "{{ dify_base_path }}/backup"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: dify_backup_enabled

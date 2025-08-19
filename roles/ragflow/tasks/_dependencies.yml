@@ -1,0 +1,182 @@
+---
+- name: Start MySQL container
+  community.docker.docker_container:
+    name: "{{ ragflow_mysql_container_name }}"
+    image: "{{ ragflow_mysql_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ ragflow_appdata_dir }}/.env"
+    env:
+      MYSQL_ROOT_PASSWORD: "{{ ragflow_mysql_password }}"
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ ragflow_mysql_port }}:3306"
+    command:
+      - "--max_connections=1000"
+      - "--character-set-server=utf8mb4"
+      - "--collation-server=utf8mb4_unicode_ci"
+      - "--default-authentication-plugin=mysql_native_password"
+      - "--tls_version=TLSv1.2,TLSv1.3"
+      - "--init-file=/data/application/init.sql"
+      - "--binlog_expire_logs_seconds=604800"
+    volumes:
+      - "{{ ragflow_mysql_data_dir }}:/var/lib/mysql"
+      - "{{ ragflow_appdata_dir }}/init.sql:/data/application/init.sql"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p{{ ragflow_mysql_password }}"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+
+- name: Start MinIO container
+  community.docker.docker_container:
+    name: "{{ ragflow_minio_container_name }}"
+    image: "{{ ragflow_minio_image }}"
+    state: started
+    restart_policy: always
+    command: server --console-address ":9001" /data
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ ragflow_appdata_dir }}/.env"
+    env:
+      MINIO_ROOT_USER: "{{ ragflow_minio_user }}"
+      MINIO_ROOT_PASSWORD: "{{ ragflow_minio_password }}"
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ ragflow_minio_port }}:9000"
+    #   - "{{ ragflow_minio_console_port }}:9001"
+    volumes:
+      - "{{ ragflow_minio_data_dir }}:/data"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+- name: Start Redis (Valkey) container
+  community.docker.docker_container:
+    name: "{{ ragflow_redis_container_name }}"
+    image: "{{ ragflow_redis_image }}"
+    state: started
+    restart_policy: always
+    command: >-
+      redis-server
+      --requirepass {{ ragflow_redis_password }}
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ ragflow_appdata_dir }}/.env"
+    env:
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ ragflow_redis_port }}:6379"
+    volumes:
+      - "{{ ragflow_redis_data_dir }}:/data"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "{{ ragflow_redis_password }}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+- name: Start Elasticsearch container
+  community.docker.docker_container:
+    name: "{{ ragflow_es_container_name }}"
+    image: "{{ ragflow_es_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ ragflow_appdata_dir }}/.env"
+    env:
+      node.name: "es01"
+      ELASTIC_PASSWORD: "{{ ragflow_es_password }}"
+      bootstrap.memory_lock: "false"
+      discovery.type: "single-node"
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.security.transport.ssl.enabled: "false"
+      cluster.routing.allocation.disk.watermark.low: "5gb"
+      cluster.routing.allocation.disk.watermark.high: "3gb"
+      cluster.routing.allocation.disk.watermark.flood_stage: "2gb"
+      TZ: "{{ timezone }}"
+    # ports:
+    #   - "{{ ragflow_es_port }}:9200"
+    memory: "{{ ragflow_mem_limit }}"
+    ulimits:
+      - "memlock:-1:-1"
+    volumes:
+      - "{{ ragflow_es_data_dir }}:/usr/share/elasticsearch/data"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --fail http://localhost:9200"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+  when: ragflow_doc_engine == 'elasticsearch'
+
+- name: Start OpenSearch container
+  community.docker.docker_container:
+    name: "{{ ragflow_os_container_name }}"
+    image: "{{ ragflow_os_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ ragflow_appdata_dir }}/.env"
+    env:
+      node.name: "opensearch01"
+      OPENSEARCH_PASSWORD: "{{ ragflow_os_password }}"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "{{ ragflow_os_password }}"
+      bootstrap.memory_lock: "false"
+      discovery.type: "single-node"
+      plugins.security.disabled: "false"
+      plugins.security.ssl.http.enabled: "false"
+      plugins.security.ssl.transport.enabled: "true"
+      cluster.routing.allocation.disk.watermark.low: "5gb"
+      cluster.routing.allocation.disk.watermark.high: "3gb"
+      cluster.routing.allocation.disk.watermark.flood_stage: "2gb"
+      TZ: "{{ timezone }}"
+      http.port: "9201"
+    # ports:
+    #   - "{{ ragflow_os_port }}:9201"
+    memory: "{{ ragflow_mem_limit }}"
+    ulimits:
+      - "memlock:-1:-1"
+    volumes:
+      - "{{ ragflow_os_data_dir }}:/usr/share/opensearch/data"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --fail -u 'admin:{{ ragflow_os_password }}' http://localhost:9201/_cluster/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+  when: ragflow_doc_engine == 'opensearch'
+
+- name: Start Infinity container
+  community.docker.docker_container:
+    name: "{{ ragflow_infinity_container_name }}"
+    image: "{{ ragflow_infinity_image }}"
+    state: started
+    restart_policy: always
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    env_file: "{{ ragflow_appdata_dir }}/.env"
+    command: ["-f", "/infinity_conf.toml"]
+    ports:
+      - "{{ ragflow_infinity_thrift_port }}:23817"
+      - "{{ ragflow_infinity_http_port }}:23820"
+      - "{{ ragflow_infinity_psql_port }}:5432"
+    memory: "{{ ragflow_mem_limit }}"
+    ulimits:
+      - "nofile:500000:500000"
+    volumes:
+      - "{{ ragflow_infinity_data_dir }}:/var/infinity"
+      - "{{ ragflow_infinity_config_file }}:/infinity_conf.toml"
+    healthcheck:
+      test: ["CMD", "curl", "http://localhost:23820/admin/node/current"]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+  when: ragflow_doc_engine == 'infinity'

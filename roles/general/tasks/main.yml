@@ -3,8 +3,9 @@
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
-  register: apt_cache_result
-  until: apt_cache_result is succeeded
+  register: general_apt_cache_result
+  until: general_apt_cache_result is succeeded
+  become: true
 
 - name: Upgrade all packages
   ansible.builtin.apt:
@@ -20,15 +21,16 @@
       - gnupg
       - htop
       - iputils-ping
+      - jq
       - lm-sensors
-      - neofetch
+      # - neofetch
       - net-tools
       - nfs-common
       - nvme-cli
       - open-iscsi
       - python3
       - python3-apt
-      - python3-docker
+      # - python3-docker
       - python3-yaml
       - software-properties-common
       - unzip
@@ -36,8 +38,8 @@
       - python3-jmespath
     install_recommends: false
     update_cache: false
-  register: apt_install_result
-  until: apt_install_result is succeeded
+  register: general_apt_install_result
+  until: general_apt_install_result is succeeded
   become: true
 
 # - name: Create homelab docker network
@@ -68,7 +70,7 @@
       ff02::1 ip6-allnodes
       ff02::2 ip6-allrouters
     dest: /etc/hosts
-    mode: '0644'
+    mode: "0644"
   become: true
 
 - name: Disable apparmor for better compatibility
@@ -96,3 +98,93 @@
   with_items:
     - "{{ homelab_appdata_directory }}"
   become: true
+
+- name: Create NFS mount point directory
+  ansible.builtin.file:
+    path: "{{ nfs_mount_point }}"
+    state: directory
+    mode: "0755"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: inventory_hostname == 'y9000p'
+  become: true
+
+- name: Mount NFS share on client
+  ansible.posix.mount:
+    path: "{{ nfs_mount_point }}"
+    src: "{{ nfs_server_host }}:{{ nfs_export_path }}"
+    fstype: nfs4
+    opts: "{{ nfs_mount_options }}"
+    state: mounted
+  when: inventory_hostname == 'y9000p'
+  become: true
+  register: general_nfs_mount_result
+  retries: 3
+  delay: 5
+  until: general_nfs_mount_result is succeeded
+
+- name: 验证 NFS 挂载点状态
+  ansible.builtin.stat:
+    path: "{{ nfs_mount_point }}"
+  when: inventory_hostname == 'y9000p'
+  register: general_nfs_mount_stat
+
+- name: 确认 NFS 挂载点已就绪
+  ansible.builtin.debug:
+    msg: "NFS 挂载点 {{ nfs_mount_point }} 已准备就绪，开始功能测试"
+  when:
+    - inventory_hostname == 'y9000p'
+    - general_nfs_mount_stat.stat.exists
+    - general_nfs_mount_stat.stat.isdir
+
+- name: 测试 NFS 挂载点写入权限
+  ansible.builtin.copy:
+    content: |
+      NFS 挂载测试文件
+      创建时间: {{ ansible_date_time.iso8601 }}
+      主机: {{ inventory_hostname }}
+      用户: {{ ansible_user }}
+    dest: "{{ nfs_mount_point }}/.ansible_nfs_test"
+    mode: "0644"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  when: inventory_hostname == 'y9000p'
+  register: general_nfs_write_test
+
+- name: 验证测试文件内容
+  ansible.builtin.slurp:
+    src: "{{ nfs_mount_point }}/.ansible_nfs_test"
+  when: inventory_hostname == 'y9000p'
+  register: general_nfs_test_content
+
+- name: 显示测试文件内容
+  ansible.builtin.debug:
+    msg: "NFS 读写测试成功，文件内容: {{ general_nfs_test_content.content | b64decode | trim }}"
+  when: inventory_hostname == 'y9000p'
+
+- name: 清理 NFS 测试文件
+  ansible.builtin.file:
+    path: "{{ nfs_mount_point }}/.ansible_nfs_test"
+    state: absent
+  when: inventory_hostname == 'y9000p'
+
+- name: 配置用户 sudo 免密权限
+  ansible.builtin.copy:
+    content: |
+      # 允许 {{ ansible_user }} 用户无密码执行 sudo 命令
+      {{ ansible_user }} ALL=(ALL) NOPASSWD:ALL
+    dest: "/etc/sudoers.d/{{ ansible_user }}-nopasswd"
+    mode: "0440"
+    owner: root
+    group: root
+    backup: true
+  become: true
+  register: general_sudo_config_result
+
+- name: 验证 sudoers 配置语法正确性
+  ansible.builtin.command:
+    cmd: "visudo -c -f /etc/sudoers.d/{{ ansible_user }}-nopasswd"
+  become: true
+  changed_when: false
+  register: general_sudo_syntax_check
+  failed_when: general_sudo_syntax_check.rc != 0

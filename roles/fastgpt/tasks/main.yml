@@ -1,0 +1,74 @@
+---
+- name: Deploy and configure Ragflow
+  block:
+    - name: Validate doc engine choice
+      ansible.builtin.assert:
+        that:
+          - _ragflow_doc_engine_check
+        fail_msg: "Unsupported doc engine '{{ ragflow_doc_engine }}'. Please choose from {{ _ragflow_supported_doc_engines }}."
+
+    - name: Ensure Ragflow directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+        recurse: false
+      loop:
+        - "{{ ragflow_appdata_dir }}"
+        - "{{ ragflow_appdata_dir }}/history_data_agent"
+        - "{{ ragflow_logs_dir }}"
+        # - "{{ ragflow_nginx_config_dir }}"
+        - "{{ ragflow_mysql_data_dir }}"
+        - "{{ ragflow_minio_data_dir }}"
+        - "{{ ragflow_redis_data_dir }}"
+        - "{{ ragflow_es_data_dir }}"
+        - "{{ ragflow_os_data_dir }}"
+        - "{{ ragflow_infinity_data_dir }}"
+      become: true
+
+    - name: Generate .env file from template
+      ansible.builtin.template:
+        src: .env.j2
+        dest: "{{ ragflow_appdata_dir }}/.env"
+        mode: "0644"
+    
+    - name: Generate service_conf file from template
+      ansible.builtin.template:
+        src: service_conf.yaml.template.j2
+        dest: "{{ ragflow_appdata_dir }}/service_conf.yaml.template"
+        mode: "0644"
+      notify: Restart ragflow containers
+
+    - name: Copy configuration files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ ragflow_appdata_dir }}/{{ item.dest }}"
+        mode: "0755"
+      loop:
+        - { src: "init.sql", dest: "init.sql" }
+        - { src: "entrypoint.sh", dest: "entrypoint.sh" }
+
+    - name: Copy static nginx configuration files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ ragflow_appdata_dir }}/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - { src: "nginx.conf", dest: "nginx.conf" }
+        - { src: "proxy.conf", dest: "proxy.conf" }
+        - { src: "ragflow.conf", dest: "ragflow.conf" }
+      # Note: You need to place your nginx config files in a 'files' directory
+      # adjacent to this role, or specify an absolute path.
+      # For simplicity in this example, we assume they are available.
+      # A better approach would be to use templates for these as well.
+      # notify: Restart ragflow containers
+
+    - name: Include dependencies deployment tasks
+      ansible.builtin.include_tasks: _dependencies.yml
+
+    - name: Include ragflow server deployment task
+      ansible.builtin.include_tasks: _ragflow_server.yml
+
+  when: ragflow_enabled is true

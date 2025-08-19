@@ -1,0 +1,17 @@
+ingress:
+  # - hostname: "echo-server.{{ cloudflared_tunnel_domain_name }}"
+  #   service: http://echo-server:8080
+
+  - hostname: "vaultwarden.{{ cloudflared_tunnel_domain_name }}"
+    service: http://vaultwarden
+
+  # - hostname: "vaultwarden.{{ cloudflared_tunnel_domain_name }}/notifications/hub"
+  #   service: http://vaultwarden:3012
+
+  # - hostname: "vaultwarden.{{ cloudflared_tunnel_domain_name }}/admin"
+  #   service: http://vaultwarden
+
+  - hostname: "immich.{{ cloudflared_tunnel_domain_name }}"
+    service: http://immich_server:2283
+
+  - service: http_status:404

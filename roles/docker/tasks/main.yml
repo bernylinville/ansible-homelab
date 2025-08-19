@@ -1,0 +1,131 @@
+---
+- name: 验证 Docker 服务状态
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+  register: docker_service_status
+
+- name: 显示 Docker 服务状态
+  ansible.builtin.debug:
+    msg: "Docker 服务状态: {{ docker_service_status.state }}"
+
+- name: 验证 Docker 守护进程响应
+  ansible.builtin.command:
+    cmd: docker version --format '{{ "{{.Server.Version}}" }}'
+  register: docker_version_check
+  changed_when: false
+  failed_when: docker_version_check.rc != 0
+
+- name: 显示 Docker 版本信息
+  ansible.builtin.debug:
+    msg: "Docker 服务器版本: {{ docker_version_check.stdout }}"
+
+- name: 验证用户 Docker 权限
+  ansible.builtin.command:
+    cmd: docker info --format '{{ "{{.ServerVersion}}" }}'
+  register: docker_user_access
+  become: false
+  changed_when: false
+  failed_when: docker_user_access.rc != 0
+
+- name: 确认用户 Docker 访问权限
+  ansible.builtin.debug:
+    msg: "用户 {{ ansible_user }} 具有 Docker 访问权限"
+
+- name: 登录 Docker Hub
+  community.docker.docker_login:
+    username: "{{ docker_hub_username }}"
+    password: "{{ docker_hub_password }}"
+    state: present
+  register: docker_hub_login_result
+  when:
+    - docker_hub_username is defined
+    - docker_hub_password is defined
+
+- name: 验证 Docker Hub 登录状态
+  ansible.builtin.debug:
+    msg: "Docker Hub 登录: {{ 'SUCCESS' if docker_hub_login_result is succeeded else 'SKIPPED' }}"
+
+- name: 创建共享 Docker 网络
+  community.docker.docker_network:
+    name: "{{ docker_shared_network_name }}"
+    state: present
+    enable_ipv6: "{{ docker_shared_network_enable_ipv6 }}"
+    ipam_config:
+      - subnet: "{{ docker_shared_network_subnet }}"
+        gateway: "{{ docker_shared_network_gateway }}"
+  register: docker_network_result
+
+- name: 验证 Docker 网络创建结果
+  ansible.builtin.debug:
+    msg: "Docker 网络 {{ docker_shared_network_name }} 创建成功，网段: {{ docker_shared_network_subnet }}"
+  when: docker_network_result is succeeded
+
+- name: 验证 Docker 网络配置
+  ansible.builtin.shell:
+    cmd: "set -o pipefail; docker network inspect {{ docker_shared_network_name }} | jq -r '.[0].IPAM.Config[0].Subnet'"
+    executable: /bin/bash
+  register: docker_network_inspect
+  changed_when: false
+  failed_when: docker_network_inspect.rc != 0
+
+- name: 确认网络配置正确性
+  ansible.builtin.assert:
+    that:
+      - docker_network_inspect.stdout == docker_shared_network_subnet
+    fail_msg: "Docker 网络配置不匹配，期望: {{ docker_shared_network_subnet }}，实际: {{ docker_network_inspect.stdout }}"
+    success_msg: "Docker 网络配置验证成功: {{ docker_shared_network_subnet }}"
+
+- name: 测试 Docker 功能 - 运行测试容器
+  community.docker.docker_container:
+    name: docker_test_container
+    image: hello-world:latest
+    state: started
+    pull: true
+    auto_remove: true
+    detach: false
+  register: docker_test_container
+  failed_when: false
+
+- name: 验证 Docker 容器功能
+  ansible.builtin.debug:
+    msg: "Docker 容器功能测试: {{ 'SUCCESS' if docker_test_container is succeeded else 'FAILED' }}"
+
+- name: 测试网络连接功能
+  community.docker.docker_container:
+    name: docker_network_test
+    image: alpine:latest
+    command: ["ping", "-c", "1", "{{ docker_shared_network_gateway }}"]
+    networks:
+      - name: "{{ docker_shared_network_name }}"
+    state: started
+    auto_remove: true
+    detach: false
+  register: docker_network_test
+  failed_when: false
+
+- name: 验证网络连接测试结果
+  ansible.builtin.debug:
+    msg: "Docker 网络连接测试: {{ 'SUCCESS' if docker_network_test is succeeded else 'FAILED' }}"
+
+- name: 清理测试容器（如果存在）
+  community.docker.docker_container:
+    name: "{{ item }}"
+    state: absent
+  loop:
+    - docker_test_container
+    - docker_network_test
+  failed_when: false
+
+- name: Docker 验证总结
+  ansible.builtin.debug:
+    msg: |
+      Docker 验证完成摘要:
+      - Docker 服务: {{ 'SUCCESS' if docker_service_status.state == 'started' else 'FAILED' }}
+      - Docker 守护进程: {{ 'SUCCESS' if docker_version_check.rc == 0 else 'FAILED' }}
+      - 用户权限: {{ 'SUCCESS' if docker_user_access.rc == 0 else 'FAILED' }}
+      - Docker Hub 登录: {{ 'SUCCESS' if docker_hub_login_result is succeeded else 'SKIPPED' }}
+      - 网络创建: {{ 'SUCCESS' if docker_network_result is succeeded else 'FAILED' }}
+      - 网络配置: {{ 'SUCCESS' if docker_network_inspect.stdout == docker_shared_network_subnet else 'FAILED' }}
+      - 容器功能: {{ 'SUCCESS' if docker_test_container is succeeded else 'FAILED' }}
+      - 网络连接: {{ 'SUCCESS' if docker_network_test is succeeded else 'FAILED' }}

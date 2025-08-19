@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  author: kchou
+  description: 开发工具安装角色，支持多节点和单节点部署控制
+  company: homelab
+  license: MIT
+  min_ansible_version: "2.12"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy  # 22.04
+        - focal  # 20.04
+  galaxy_tags:
+    - development
+    - tools
+    - charm
+    - crush
+    - ai
+    - coding
+
+dependencies: []
+
+collections:
+  - ansible.builtin
+  - ansible.posix

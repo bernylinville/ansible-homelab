@@ -1,0 +1,20 @@
+---
+# Defaults for the shared Docker network management role
+
+# Name of the shared Docker network
+docker_shared_network_name: "selfhosted_network"
+
+# Subnet for the shared network. Choose a range less likely to conflict.
+# Default Docker bridge is often 172.17.0.0/16. Common home nets are 192.168.x.x.
+docker_shared_network_subnet: "172.66.0.0/16"
+
+# Gateway for the shared network.
+docker_shared_network_gateway: "172.66.0.1"
+
+# Enable IPv6 if needed (set to true)
+docker_shared_network_enable_ipv6: false
+# shared_docker_network_subnet_ipv6: "fd00:abcd:ef01::/64" # Example IPv6 subnet
+
+# Docker Hub Configuration
+docker_hub_username: "{{ vault_docker_hub_username }}"
+docker_hub_password: "{{ vault_docker_hub_password }}"

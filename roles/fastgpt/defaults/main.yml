@@ -1,0 +1,86 @@
+---
+# Enable/disable the fastgpt deployment
+fastgpt_enabled: false
+
+# === Directories and Paths ===
+# Base directory for fastgpt application data
+fastgpt_appdata_dir: "{{ homelab_appdata_directory }}/fastgpt"
+
+# === fastgpt Server Configuration ===
+fastgpt_image: "infiniflow/fastgpt:v0.20.1"
+fastgpt_container_name: "fastgpt-server"
+fastgpt_http_port: "9380" # Internal port is 9380
+fastgpt_web_port_http: "80"
+fastgpt_web_port_https: "443"
+# Optional environment variables for fastgpt-server
+fastgpt_hf_endpoint: "" # Example: https://hf-mirror.com
+fastgpt_macos_optimizations: false
+# Wait timeout in seconds for dependencies to become healthy
+fastgpt_dependency_wait_timeout: 300
+
+# === Dependencies Configuration ===
+# --- pgvector ---
+fastgpt_pgvector_image_version: "0.8.0-pg15"
+fastgpt_pgvector_container_name: "fastgpt-pgvector"
+fastgpt_pgvector_user: "fastgpt"
+fastgpt_pgvector_password: "fastgpt_pgvector_password_change_me"
+fastgpt_pgvector_db_name: "fastgpt"
+fastgpt_pgvector_data_dir: "{{ fastgpt_appdata_dir }}/pg_data"
+
+# --- mongo ---
+fastgpt_mongo_image_version: "5.0.18"
+fastgpt_mongo_container_name: "fastgpt-mongo"
+fastgpt_mongo_root_user: "fastgpt"
+fastgpt_mongo_root_password: "fastgpt_mongo_root_password_change_me"
+fastgpt_mongo_data_dir: "{{ fastgpt_appdata_dir }}/mongo_data"
+
+# --- MinIO ---
+fastgpt_minio_image: "quay.io/minio/minio:RELEASE.2025-06-13T11-33-47Z"
+fastgpt_minio_container_name: "fastgpt-minio"
+fastgpt_minio_port: "9000"
+fastgpt_minio_console_port: "9001"
+fastgpt_minio_user: "fastgpt"
+fastgpt_minio_password: "fastgpt_minio_password_change_me"
+fastgpt_minio_data_dir: "{{ fastgpt_appdata_dir }}/minio_data"
+
+# --- Redis (using Valkey) ---
+fastgpt_redis_image: "valkey/valkey:8"
+fastgpt_redis_container_name: "fastgpt-redis"
+fastgpt_redis_port: "6379"
+fastgpt_redis_password: "fastgpt_redis_password_change_me"
+fastgpt_redis_data_dir: "{{ fastgpt_appdata_dir }}/redis_data"
+
+# === Search Engine Choice (Choose ONE) ===
+# The type of doc engine to use.
+# Available options: "elasticsearch", "opensearch", "infinity"
+fastgpt_doc_engine: "elasticsearch"
+# Validate the choice to prevent misconfiguration
+_fastgpt_supported_doc_engines: ["elasticsearch", "opensearch", "infinity"]
+_fastgpt_doc_engine_check: "{{ fastgpt_doc_engine in _fastgpt_supported_doc_engines }}"
+
+# --- Elasticsearch ---
+fastgpt_es_image: "elasticsearch:8.11.3"
+fastgpt_es_container_name: "fastgpt-es-01"
+fastgpt_es_port: "9200"
+fastgpt_es_password: "fastgpt_es_password_change_me"
+fastgpt_es_data_dir: "{{ fastgpt_appdata_dir }}/esdata01"
+
+# --- OpenSearch ---
+fastgpt_os_image: "opensearchproject/opensearch:2.19.1"
+fastgpt_os_container_name: "fastgpt-opensearch-01"
+fastgpt_os_port: "9201"
+fastgpt_os_password: "fastgpt_os_password_change_me"
+fastgpt_os_data_dir: "{{ fastgpt_appdata_dir }}/osdata01"
+
+# --- Infinity ---
+fastgpt_infinity_image: "infiniflow/infinity:v0.6.0-dev5"
+fastgpt_infinity_container_name: "fastgpt-infinity"
+fastgpt_infinity_thrift_port: "23817"
+fastgpt_infinity_http_port: "23820"
+fastgpt_infinity_psql_port: "5432"
+fastgpt_infinity_data_dir: "{{ fastgpt_appdata_dir }}/infinity_data"
+fastgpt_infinity_config_file: "{{ fastgpt_appdata_dir }}/infinity_conf.toml"
+
+# === GPU Settings ===
+# Set to true to enable GPU support for fastgpt-server
+fastgpt_gpu_enabled: true

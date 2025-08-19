@@ -1,0 +1,147 @@
+---
+# Dify Docker Compose 部署配置
+
+# 基础配置
+dify_project_name: "dify"
+dify_base_path: "{{ homelab_appdata_directory }}/dify"
+dify_compose_path: "{{ dify_base_path }}/docker"
+
+# 版本配置
+dify_version: "1.7.1"
+dify_plugin_daemon_version: "0.2.0-local"
+dify_sandbox_version: "0.2.12"
+
+# 端口配置
+dify_nginx_port: "{{ dify_web_port | default(18473) }}"
+dify_nginx_ssl_port: "{{ dify_web_port | default(18473) | int + 1 }}"
+
+# 环境变量配置
+dify_env:
+  # 基础配置
+  LANG: "zh_CN.UTF-8"
+  LC_ALL: "zh_CN.UTF-8"
+  TZ: "{{ timezone | default('Asia/Shanghai') }}"
+  DEBUG: "{{ dify_enable_debug | default(false) | string | lower }}"
+  DEPLOY_ENV: "PRODUCTION"
+
+  # 安全配置
+  SECRET_KEY: "{{ vault_dify_secret_key }}"
+  INIT_PASSWORD: "{{ vault_dify_init_password }}"
+
+  # 数据库配置
+  DB_USERNAME: "postgres"
+  DB_PASSWORD: "{{ vault_dify_db_password }}"
+  DB_HOST: "db"
+  DB_PORT: "5432"
+  DB_DATABASE: "dify"
+
+  # PostgreSQL 容器配置
+  POSTGRES_PASSWORD: "{{ vault_dify_db_password }}"
+  POSTGRES_DB: "dify"
+
+  # Redis 配置
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: "{{ vault_dify_redis_password }}"
+  REDIS_DB: "0"
+
+  # Celery 配置
+  CELERY_BROKER_URL: "redis://:{{ vault_dify_redis_password }}@redis:6379/1"
+
+  # 存储配置
+  STORAGE_TYPE: "{{ dify_storage_type | default('opendal') }}"
+  OPENDAL_SCHEME: "fs"
+  OPENDAL_FS_ROOT: "storage"
+
+  # 向量数据库配置
+  VECTOR_STORE: "{{ dify_vector_store | default('weaviate') }}"
+  WEAVIATE_ENDPOINT: "http://weaviate:8080"
+  WEAVIATE_API_KEY: "WVF5YThaHlkYwhGUSmCRgsX3tD5ngdN8pkih"
+
+  # Sandbox 配置
+  CODE_EXECUTION_ENDPOINT: "http://sandbox:8194"
+  CODE_EXECUTION_API_KEY: "{{ vault_dify_sandbox_api_key }}"
+  SANDBOX_API_KEY: "{{ vault_dify_sandbox_api_key }}"
+
+  # Plugin 配置
+  PLUGIN_DAEMON_URL: "http://plugin_daemon:5002"
+  PLUGIN_DAEMON_KEY: "{{ vault_dify_plugin_key }}"
+  PLUGIN_DIFY_INNER_API_KEY: "{{ vault_dify_plugin_inner_api_key }}"
+  PLUGIN_MAX_PACKAGE_SIZE: "52428800"
+  FORCE_VERIFYING_SIGNATURE: "true"
+
+  # 端口配置
+  EXPOSE_NGINX_PORT: "{{ dify_nginx_port }}"
+  EXPOSE_NGINX_SSL_PORT: "{{ dify_nginx_ssl_port }}"
+
+  # Docker Compose 配置
+  COMPOSE_PROFILES: "{{ dify_vector_store | default('weaviate') }}"
+
+# Docker Compose 配置
+dify_compose_state: "present"
+dify_compose_build: "never"
+dify_compose_pull: "missing"
+dify_compose_remove_orphans: true
+dify_compose_recreate: "auto"
+
+# 要启用的服务
+dify_compose_profiles:
+  - "{{ dify_vector_store | default('weaviate') }}"
+
+# 要启动的服务（空表示所有服务）
+dify_compose_services: []
+
+# 要停止的服务（用于维护）
+dify_compose_stopped_services: []
+
+# 网络配置
+dify_networks:
+  - name: "{{ docker_shared_network_name | default('selfhosted_network') }}"
+    external: true
+
+# 备份和维护配置
+dify_backup_enabled: "{{ dify_enable_backup | default(false) }}"
+dify_backup_schedule: "0 2 * * *"  # 每天凌晨2点
+dify_backup_retention_days: 7
+
+# 监控配置
+dify_monitoring_enabled: false
+dify_monitoring_endpoint: ""
+
+# 安全配置
+dify_enable_ssl: false
+dify_ssl_cert_path: ""
+dify_ssl_key_path: ""
+
+# 性能配置
+dify_api_workers: 1
+dify_web_instances: 1
+
+# 开发配置
+dify_enable_debug: false
+dify_enable_plugin_debugging: false
+
+# Nginx 配置
+dify_nginx_keepalive_timeout: 65
+dify_nginx_client_max_body_size: "100M"
+dify_nginx_proxy_read_timeout: "3600s"
+dify_nginx_proxy_send_timeout: "3600s"
+
+# Sandbox 配置
+dify_sandbox_max_workers: 4
+dify_sandbox_max_requests: 50
+dify_sandbox_worker_timeout: 15
+dify_sandbox_enable_network: true
+dify_sandbox_socks5_proxy: ""
+dify_sandbox_http_proxy: ""
+dify_sandbox_https_proxy: ""
+dify_sandbox_port: 8194
+
+# SSRF 代理配置
+dify_ssrf_http_port: 3128
+dify_ssrf_coredump_dir: "/var/spool/squid"
+dify_ssrf_reverse_proxy_port: 8194
+dify_ssrf_sandbox_host: "sandbox"
+
+# 插件配置
+dify_plugin_port: 5003

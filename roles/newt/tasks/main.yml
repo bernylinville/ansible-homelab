@@ -1,0 +1,35 @@
+---
+- name: Start newt Server
+  block:
+    # - name: Create newt directories
+    #   ansible.builtin.file:
+    #     path: "{{ item }}"
+    #     state: directory
+    #     owner: "{{ ansible_user }}"
+    #     group: "{{ ansible_user }}"
+    #     mode: "0755"
+    #   with_items:
+    #     - "{{ newt_dir }}"
+    #     - "{{ newt_dir }}/data"
+
+    - name: Start newt Container
+      community.docker.docker_container:
+        name: newt
+        image: "fosrl/newt:{{ newt_image_version }}"
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        env:
+          TZ: "{{ timezone }}"
+          PANGOLIN_ENDPOINT: "{{ newt_pangolin_domain }}"
+          NEWT_ID: "{{ newt_id }}"
+          NEWT_SECRET: "{{ newt_secret }}"
+        restart_policy: always
+  when: newt_enabled is true
+
+- name: Stop newt Server
+  block:
+    - name: Stop newt Server
+      community.docker.docker_compose_v2:
+        project_src: "{{ newt_dir }}"
+        state: absent
+  when: newt_enabled is false

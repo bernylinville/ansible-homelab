@@ -1,0 +1,74 @@
+---
+# todo: add cloudflare debian install
+# Add cloudflare gpg key
+# sudo mkdir -p --mode=0755 /usr/share/keyrings
+# curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+
+# Add this repo to your apt repositories
+# echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
+
+# install cloudflared
+# sudo apt-get update && sudo apt-get install cloudflared
+
+- name: Start Cloudflared
+  block:
+    - name: Create Cloudflared Directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: kchou
+        group: kchou
+        mode: "0755"
+        state: directory
+      with_items:
+        - "{{ cloudflared_data_directory }}"
+    - name: Template cloudflared credentials.json
+      ansible.builtin.template:
+        src: credentials.json
+        dest: "{{ cloudflared_data_directory }}/credentials.json"
+        mode: "0755"
+    - name: Template cloudflared config.yml
+      ansible.builtin.template:
+        src: config.yml
+        dest: "{{ cloudflared_data_directory }}/config.yml"
+        mode: "0755"
+      register: template_config
+    - name: Cloudflared Container
+      community.docker.docker_container:
+        name: cloudflared
+        image: "cloudflare/cloudflared:{{ cloudflared_image_version }}"
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        command:
+          - "tunnel"
+          - "--config"
+          - "/etc/cloudflared/config.yml"
+          - "run"
+          - "{{ cloudflared_tunnel_id }}"
+        volumes:
+          - "{{ cloudflared_data_directory }}/config.yml:/etc/cloudflared/config.yml"
+          - "{{ cloudflared_data_directory }}/credentials.json:/etc/cloudflared/credentials.json"
+        env:
+          NO_AUTOUPDATE: "true"
+          TUNNEL_CRED_FILE: /etc/cloudflared/credentials.json
+          TUNNEL_TRANSPORT_PROTOCOL: http2
+        restart_policy: unless-stopped
+        recreate: "{{ template_config is changed }}"
+    - name: Create DNS Record
+      ansible.builtin.command: >
+        cloudflared tunnel route dns {{ cloudflared_tunnel_id }} {{ cloudflared_tunnel_domain_name }}
+      register: dns_output
+      changed_when: dns_output.rc != 0
+    - name: Create DNS Record
+      ansible.builtin.command: >
+        cloudflared tunnel route dns {{ cloudflared_tunnel_id }} *.{{ cloudflared_tunnel_domain_name }}
+      register: dns_output
+      changed_when: dns_output.rc != 0
+  when: cloudflared_enabled is true
+
+- name: Stop Cloudflared
+  block:
+    - name: Stop Cloudflared
+      community.docker.docker_container:
+        name: "{{ cloudflared_container_name }}"
+        state: absent
+  when: cloudflared_enabled is false

@@ -1,0 +1,88 @@
+---
+# Enable/disable the ragflow deployment
+ragflow_enabled: false
+
+# === Directories and Paths ===
+# Base directory for ragflow application data
+ragflow_appdata_dir: "{{ homelab_appdata_directory }}/ragflow"
+# Base directory for ragflow logs
+ragflow_logs_dir: "{{ ragflow_appdata_dir }}/logs"
+# Base directory for nginx configurations
+ragflow_nginx_config_dir: "{{ ragflow_appdata_dir }}/nginx"
+
+# Memory limit for dependency services (e.g., elasticsearch, mysql)
+# Default: 8073741824 (8GB)
+ragflow_mem_limit: "8g"
+
+# === Ragflow Server Configuration ===
+ragflow_image: "infiniflow/ragflow:v0.20.1"
+ragflow_container_name: "ragflow-server"
+ragflow_http_port: "9380" # Internal port is 9380
+ragflow_web_port_http: "80"
+ragflow_web_port_https: "443"
+# Optional environment variables for ragflow-server
+ragflow_hf_endpoint: "" # Example: https://hf-mirror.com
+ragflow_macos_optimizations: false
+# Wait timeout in seconds for dependencies to become healthy
+ragflow_dependency_wait_timeout: 300
+
+# === Dependencies Configuration ===
+# --- MySQL ---
+ragflow_mysql_image: "mysql:8.0.39"
+ragflow_mysql_container_name: "ragflow-mysql"
+ragflow_mysql_port: "3306" # Host port mapping
+ragflow_mysql_password: "ragflow_db_password_change_me"
+ragflow_mysql_data_dir: "{{ ragflow_appdata_dir }}/mysql_data"
+ragflow_mysql_db_name: "rag_flow"
+ragflow_mysql_user: "root"
+
+# --- MinIO ---
+ragflow_minio_image: "quay.io/minio/minio:RELEASE.2025-06-13T11-33-47Z"
+ragflow_minio_container_name: "ragflow-minio"
+ragflow_minio_port: "9000"
+ragflow_minio_console_port: "9001"
+ragflow_minio_user: "ragflow"
+ragflow_minio_password: "ragflow_minio_password_change_me"
+ragflow_minio_data_dir: "{{ ragflow_appdata_dir }}/minio_data"
+
+# --- Redis (using Valkey) ---
+ragflow_redis_image: "valkey/valkey:8"
+ragflow_redis_container_name: "ragflow-redis"
+ragflow_redis_port: "6379"
+ragflow_redis_password: "ragflow_redis_password_change_me"
+ragflow_redis_data_dir: "{{ ragflow_appdata_dir }}/redis_data"
+
+# === Search Engine Choice (Choose ONE) ===
+# The type of doc engine to use.
+# Available options: "elasticsearch", "opensearch", "infinity"
+ragflow_doc_engine: "elasticsearch"
+# Validate the choice to prevent misconfiguration
+_ragflow_supported_doc_engines: ["elasticsearch", "opensearch", "infinity"]
+_ragflow_doc_engine_check: "{{ ragflow_doc_engine in _ragflow_supported_doc_engines }}"
+
+# --- Elasticsearch ---
+ragflow_es_image: "elasticsearch:8.11.3"
+ragflow_es_container_name: "ragflow-es-01"
+ragflow_es_port: "9200"
+ragflow_es_password: "ragflow_es_password_change_me"
+ragflow_es_data_dir: "{{ ragflow_appdata_dir }}/esdata01"
+
+# --- OpenSearch ---
+ragflow_os_image: "opensearchproject/opensearch:2.19.1"
+ragflow_os_container_name: "ragflow-opensearch-01"
+ragflow_os_port: "9201"
+ragflow_os_password: "ragflow_os_password_change_me"
+ragflow_os_data_dir: "{{ ragflow_appdata_dir }}/osdata01"
+
+# --- Infinity ---
+ragflow_infinity_image: "infiniflow/infinity:v0.6.0-dev5"
+ragflow_infinity_container_name: "ragflow-infinity"
+ragflow_infinity_thrift_port: "23817"
+ragflow_infinity_http_port: "23820"
+ragflow_infinity_psql_port: "5432"
+ragflow_infinity_data_dir: "{{ ragflow_appdata_dir }}/infinity_data"
+ragflow_infinity_config_file: "{{ ragflow_appdata_dir }}/infinity_conf.toml"
+
+# === GPU Settings ===
+# Set to true to enable GPU support for ragflow-server
+ragflow_gpu_enabled: true

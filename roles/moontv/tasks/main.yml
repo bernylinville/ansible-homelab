@@ -1,0 +1,51 @@
+---
+- name: Start moontv
+  block:
+    - name: Create moontv directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: "0755"
+        recurse: true
+      with_items:
+        - "{{ moontv_dir }}"
+        - "{{ moontv_dir }}/redis"
+
+    - name: moontv redis Docker Container
+      community.docker.docker_container:
+        name: moontv_redis
+        image: redis:alpine
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        env:
+          TZ: "{{ timezone }}"
+        volumes:
+          - "{{ moontv_dir }}/redis:/data"
+        restart_policy: always
+
+    - name: Start moontv Container
+      community.docker.docker_container:
+        name: moontv_core
+        image: "ghcr.io/moontechlab/lunatv:{{ moontv_image_version }}"
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        ports:
+          - 23682:3000
+        env:
+          TZ: "{{ timezone }}"
+          USERNAME: "{{ moontv_user_name }}"
+          PASSWORD: "{{ moontv_password }}"
+          NEXT_PUBLIC_STORAGE_TYPE: "redis"
+          REDIS_URL: "redis://moontv_redis:6379"
+        restart_policy: always
+  when: moontv_enabled is true
+
+- name: Stop moontv Server
+  block:
+    - name: Stop moontv Server
+      community.docker.docker_compose_v2:
+        project_src: "{{ moontv_dir }}"
+        state: absent
+  when: moontv_enabled is false

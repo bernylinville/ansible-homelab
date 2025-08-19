@@ -6,21 +6,130 @@
       tags:
         - general
 
-    # - role: vladgh.samba.server
+    # - role: geerlingguy.docker
     #   tags:
-    #     - samba
+    #     - docker
+    #   become: true
 
-    - role: geerlingguy.docker
-      tags:
-        - docker
-      become: true
+    # - role: docker
+    #   tags:
+    #     - docker
 
-    - role: kvm
-      tags:
-        - kvm
+    # - role: vaultwarden
+    #   tags:
+    #     - vaultwarden
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
 
-# - name: Install docker
-#   hosts: docker
-#   roles:
-#     - role: geerlingguy.docker
-#       tags: ['docker']
+    # - role: immich
+    #   tags:
+    #     - immich
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
+
+    # # - role: cloudflared
+    # #   tags:
+    # #     - cloudflared
+    # #     - self_hosted
+    # #   when: inventory_hostname == 'y9000p'
+
+    # - role: newt
+    #   tags:
+    #     - newt
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: n8n
+    #   tags:
+    #     - n8n
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: prompt
+    #   tags:
+    #     - prompt
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: moontv
+    #   tags:
+    #     - moontv
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: gpt_load
+    #   tags:
+    #     - gpt_load
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: syncthing
+    #   tags:
+    #     - syncthing
+    #     - self_hosted
+    #   when: inventory_hostname == 'b360m'
+
+    # - role: ragflow
+    #   tags:
+    #     - ragflow
+    #     - self_hosted
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: prometheus.prometheus.node_exporter
+    #   tags:
+    #     - node_exporter
+    #     - monitoring
+
+    # - role: prometheus.prometheus.cadvisor
+    #   tags:
+    #     - cadvisor
+    #     - monitoring
+
+    # - role: prometheus.prometheus.nvidia_gpu_exporter
+    #   tags:
+    #     - nvidia_gpu_exporter
+    #     - monitoring
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: prometheus.prometheus.prometheus
+    #   tags:
+    #     - prometheus
+    #     - monitoring
+    #   when: inventory_hostname == 'b360m'
+
+    # - role: grafana.grafana.grafana
+    #   tags:
+    #     - grafana
+    #     - monitoring
+    #   when: inventory_hostname == 'y9000p'
+
+    # - role: kvm
+    #   tags:
+    #     - kvm
+
+    # - role: dify
+    #   tags:
+    #     - dify
+
+    # - role: immich
+    #   tags:
+    #     - immich
+
+- name: Cluster prep
+  hosts: k3s_cluster
+  gather_facts: true
+  become: true
+  roles:
+    - role: k3s.orchestration.prereq
+
+- name: Setup K3S server
+  hosts: server
+  become: true
+  roles:
+    - role: k3s.orchestration.k3s_server
+
+- name: Setup K3S agent
+  hosts: agent
+  become: true
+  roles:
+    - role: k3s.orchestration.k3s_agent

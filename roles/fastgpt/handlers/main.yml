@@ -1,0 +1,16 @@
+---
+- name: Set document engine container name fact
+  ansible.builtin.set_fact:
+    doc_engine_container_name: >-
+      {% if ragflow_doc_engine == 'elasticsearch' %}{{ ragflow_es_container_name }}{%
+      elif ragflow_doc_engine == 'opensearch' %}{{ ragflow_os_container_name }}{%
+      elif ragflow_doc_engine == 'infinity' %}{{ ragflow_infinity_container_name }}{% endif %}
+
+- name: Restart ragflow containers
+  ansible.builtin.command: "docker restart {{ item }}"
+  loop:
+    - "{{ ragflow_container_name }}"
+    - "{{ ragflow_mysql_container_name }}"
+    - "{{ ragflow_minio_container_name }}"
+    - "{{ ragflow_redis_container_name }}"
+    - "{{ doc_engine_container_name }}"

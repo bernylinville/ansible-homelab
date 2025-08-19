@@ -1,0 +1,4 @@
+---
+syncthing_enabled: false
+syncthing_dir: "{{ homelab_appdata_directory }}/syncthing"
+syncthing_image_version: 1.30.0

@@ -1,0 +1,9 @@
+# roles/immich/defaults/main.yml
+---
+immich_enabled: false
+immich_dir: "{{ homelab_appdata_directory }}/immich"
+immich_image_version: v1.137.3
+immich_data_dir: ""
+immich_database_password: "postgres"
+immich_database_user_name: "postgres"
+immich_database_name: "immich"

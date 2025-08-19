@@ -1,0 +1,42 @@
+---
+# Dify Docker Compose Handlers
+
+- name: 重启 Dify 服务
+  community.docker.docker_compose_v2:
+    project_src: "{{ dify_compose_path }}"
+    project_name: "{{ dify_project_name }}"
+    state: present
+    recreate: "always"
+  listen: "重启 Dify 服务"
+
+- name: 重新加载 Dify 配置
+  community.docker.docker_compose_v2:
+    project_src: "{{ dify_compose_path }}"
+    project_name: "{{ dify_project_name }}"
+    env_files:
+      - "{{ dify_compose_path }}/.env"
+    pull: false
+    recreate: "smart"
+  listen: "重新加载 Dify 配置"
+
+- name: 停止 Dify 服务
+  community.docker.docker_compose_v2:
+    project_src: "{{ dify_compose_path }}"
+    project_name: "{{ dify_project_name }}"
+    state: stopped
+  listen: "停止 Dify 服务"
+
+- name: 完全卸载 Dify
+  community.docker.docker_compose_v2:
+    project_src: "{{ dify_compose_path }}"
+    project_name: "{{ dify_project_name }}"
+    state: absent
+    remove_orphans: true
+    remove_volumes: true
+  listen: "完全卸载 Dify"
+
+- name: 拉取最新镜像
+  community.docker.docker_compose_v2_pull:
+    project_src: "{{ dify_compose_path }}"
+    project_name: "{{ dify_project_name }}"
+  listen: "拉取最新镜像"

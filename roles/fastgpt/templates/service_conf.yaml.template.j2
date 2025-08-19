@@ -1,0 +1,31 @@
+ragflow:
+  host: 0.0.0.0
+  http_port: 9380
+mysql:
+  name: '{{ ragflow_mysql_db_name }}'
+  user: '{{ ragflow_mysql_user }}'
+  password: '{{ ragflow_mysql_password }}'
+  host: '{{ ragflow_mysql_container_name }}'
+  port: 3306
+  max_connections: 900
+  stale_timeout: 300
+  max_allowed_packet: 1073741824
+minio:
+  user: '{{ ragflow_minio_user }}'
+  password: '{{ ragflow_minio_password }}'
+  host: '{{ ragflow_minio_container_name }}:9000'
+es:
+  hosts: 'http://{{ ragflow_es_container_name }}:9200' # Placeholder, not used if doc_engine is not elasticsearch
+  username: 'elastic'
+  password: '{{ ragflow_es_password }}'
+os:
+  hosts: 'http://{{ ragflow_os_container_name }}:9201'
+  username: 'admin'
+  password: '{{ ragflow_os_password }}'
+infinity:
+  uri: 'ragflow-infinity-01:23817' # Placeholder, not used if doc_engine is not infinity
+  db_name: 'default_db'
+redis:
+  db: 1
+  password: '{{ ragflow_redis_password }}'
+  host: '{{ ragflow_redis_container_name }}:6379'

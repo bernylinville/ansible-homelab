@@ -4,3 +4,7 @@
 
 .venv/
 .vscode/
+
+.vault_pass
+
+.claude/

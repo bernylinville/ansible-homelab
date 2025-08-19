@@ -1,0 +1,9 @@
+---
+n8n_enabled: false
+n8n_dir: "{{ homelab_appdata_directory }}/n8n"
+n8n_image_version: 1.106.3
+n8n_database_password: ""
+n8n_database_user_name: ""
+n8n_database_name: ""
+n8n_database_non_root_user_name: ""
+n8n_database_non_root_password: ""

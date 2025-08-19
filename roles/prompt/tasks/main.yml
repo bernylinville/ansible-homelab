@@ -1,0 +1,23 @@
+---
+- name: Start prompt Server
+  block:
+    - name: Start prompt Container
+      community.docker.docker_container:
+        name: prompt_optimizer
+        image: "linshen/prompt-optimizer:{{ prompt_image_version }}"
+        networks:
+          - name: "{{ docker_shared_network_name }}"
+        ports:
+          - 23680:80
+        env:
+          TZ: "{{ timezone }}"
+        restart_policy: always
+  when: prompt_enabled is true
+
+- name: Stop prompt Server
+  block:
+    - name: Stop prompt Server
+      community.docker.docker_compose_v2:
+        project_src: "{{ prompt_dir }}"
+        state: absent
+  when: prompt_enabled is false
